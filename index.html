@@ -1,1 +1,736 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>置いてみる ― 写真から立体カードを置く道具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --wood-deep:#3a2c22;
+    --wood:#6b4d36;
+    --wood-light:#a9805a;
+    --linen:#ede4d3;
+    --paper:#faf6ee;
+    --ink:#2c2420;
+    --moss:#5c6b4f;
+    --moss-light:#7c8c68;
+    --clay:#b5613f;
+    --line:rgba(44,36,32,0.14);
+    --shadow:0 10px 30px rgba(44,36,32,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,sans-serif;
+    background:var(--linen);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    display:flex;
+    min-height:100vh;
+    flex-direction:column;
+  }
 
+  /* ---- header ---- */
+  header{
+    padding:22px 28px 16px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--paper),var(--linen));
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .brand .mark{
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    font-size:26px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:var(--wood-deep);
+  }
+  .brand .sub{
+    font-size:12.5px;
+    color:#6b6358;
+    letter-spacing:0.02em;
+  }
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:0.18em;
+    color:var(--clay);
+    font-weight:700;
+    margin-bottom:4px;
+    text-transform:uppercase;
+  }
+
+  /* ---- layout ---- */
+  .main{
+    flex:1;
+    display:flex;
+    gap:0;
+    min-height:0;
+  }
+  .stage-wrap{
+    flex:1;
+    position:relative;
+    background:#1d1812;
+    overflow:hidden;
+    min-height:60vh;
+  }
+  .stage-empty{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    color:#d8cdb9;
+    text-align:center;
+    padding:24px;
+  }
+  .stage-empty svg{opacity:0.55;}
+  .stage-empty .t1{font-size:15px;font-weight:600;color:#f0e8d8;}
+  .stage-empty .t2{font-size:13px;color:#a99d87;max-width:320px;line-height:1.6;}
+
+  #roomImg{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:none;
+  }
+  #scene3d{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    touch-action:none;
+  }
+  .stage-hint{
+    position:absolute;
+    bottom:16px;
+    left:16px;
+    background:rgba(28,22,16,0.65);
+    color:#f0e8d8;
+    font-size:12px;
+    padding:8px 12px;
+    border-radius:8px;
+    backdrop-filter:blur(4px);
+    pointer-events:none;
+    transition:opacity .3s;
+  }
+
+  /* ---- side panel ---- */
+  .panel{
+    width:340px;
+    flex-shrink:0;
+    background:var(--paper);
+    border-left:1px solid var(--line);
+    overflow-y:auto;
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+  .block{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+  }
+  .block h3{
+    margin:0 0 12px;
+    font-size:13px;
+    letter-spacing:0.06em;
+    color:var(--wood-deep);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .block h3 .num{
+    width:20px;height:20px;border-radius:50%;
+    background:var(--moss);color:#fff;
+    font-size:11px;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .row{display:flex;gap:8px;}
+  input[type=file]{display:none;}
+  button, .btn, label.btn-primary, label.btn-ghost, label.btn-outline{
+    font-family:inherit;
+    border:none;
+    border-radius:9px;
+    padding:10px 14px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .12s, filter .15s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:var(--moss);color:#fff;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-ghost{background:var(--linen);color:var(--wood-deep);}
+  .btn-ghost:hover{filter:brightness(0.97);}
+  .btn-outline{background:transparent;color:var(--clay);border:1px solid var(--clay);}
+  .btn-danger{background:transparent;color:#a8472f;border:1px solid rgba(168,71,47,0.4);}
+  .btn-block{width:100%;}
+  .thumb-preview{
+    margin-top:10px;
+    width:100%;
+    height:70px;
+    border-radius:8px;
+    object-fit:cover;
+    display:none;
+    border:1px solid var(--line);
+  }
+
+  .item-list{display:flex;flex-direction:column;gap:6px;}
+  .item-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 10px;
+    border-radius:10px;
+    background:var(--linen);
+    cursor:pointer;
+    border:1px solid transparent;
+  }
+  .item-row.active{
+    border-color:var(--moss);
+    background:#fff;
+  }
+  .item-row img{
+    width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;
+  }
+  .item-row .name{font-size:12.5px;flex:1;color:var(--ink);}
+  .item-row .del{
+    background:none;border:none;color:#a8472f;font-size:16px;padding:2px 6px;cursor:pointer;
+  }
+  .empty-list{font-size:12px;color:#8a8074;padding:8px 2px;}
+
+  .ctrl{margin-bottom:14px;}
+  .ctrl:last-child{margin-bottom:0;}
+  .ctrl label{
+    display:flex;justify-content:space-between;
+    font-size:12px;color:#6b6358;margin-bottom:6px;
+  }
+  .ctrl label span.val{color:var(--wood-deep);font-weight:700;}
+  input[type=range]{
+    width:100%;
+    -webkit-appearance:none;
+    height:5px;
+    border-radius:3px;
+    background:var(--line);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:17px;height:17px;border-radius:50%;
+    background:var(--wood);
+    cursor:pointer;
+    border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  }
+  .controls-disabled{opacity:0.4;pointer-events:none;}
+  .note{font-size:11.5px;color:#8a8074;line-height:1.6;margin-top:10px;}
+  .badge{
+    display:inline-block;
+    font-size:10.5px;
+    padding:2px 7px;
+    border-radius:5px;
+    background:var(--moss-light);
+    color:#fff;
+    margin-left:6px;
+    font-weight:600;
+  }
+  footer.bottom{
+    padding:8px 28px 12px;
+    font-size:11px;
+    color:#9a8f80;
+    text-align:center;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+
+  @media (max-width:880px){
+    .main{flex-direction:column;}
+    .panel{width:100%;border-left:none;border-top:1px solid var(--line);max-height:50vh;}
+    .stage-wrap{min-height:48vh;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="eyebrow">写真 → 立体カード → 部屋に配置</div>
+    <div class="brand">
+      <span class="mark">置いてみる</span>
+      <span class="sub">撮った物の写真を厚みのある3Dカードにして、部屋の写真の上に置いて確かめる道具です</span>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage-wrap" id="stageWrap">
+      <div class="stage-empty" id="stageEmpty">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 9.5L12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9.5 20v-6h5v6"/></svg>
+        <div class="t1">まずは部屋の写真を選んでください</div>
+        <div class="t2">右側の「①部屋を撮る・選ぶ」から、置きたい場所の写真を読み込みます。スマホなら直接カメラが開きます。</div>
+      </div>
+      <img id="roomImg" alt="部屋の写真">
+      <canvas id="scene3d"></canvas>
+      <div class="stage-hint" id="stageHint" style="display:none;">ドラッグで移動・つまんで回転やサイズはパネルから調整できます</div>
+    </div>
+
+    <div class="panel">
+
+      <div class="block">
+        <h3><span class="num">1</span>部屋を撮る・選ぶ</h3>
+        <div class="row">
+          <label class="btn-primary btn-block" for="fileRoom" style="cursor:pointer;">部屋の写真</label>
+          <input type="file" id="fileRoom" accept="image/*" capture="environment">
+        </div>
+        <img class="thumb-preview" id="roomThumb">
+      </div>
+
+      <div class="block">
+        <h3><span class="num">2</span>物を撮る・選ぶ</h3>
+        <div class="row">
+          <label class="btn-primary btn-block" for="fileItem" style="cursor:pointer;">物の写真を追加</label>
+          <input type="file" id="fileItem" accept="image/*" capture="environment">
+        </div>
+        <img class="thumb-preview" id="itemThumb">
+        <div class="note">撮った写真は、厚み約5cm相当の立体カードになり、部屋の上に置けます。背景は写真のまま残ります。</div>
+      </div>
+
+      <div class="block">
+        <h3><span class="num">3</span>置いたもの<span class="badge" id="itemCount">0</span></h3>
+        <div class="item-list" id="itemList">
+          <div class="empty-list">まだ何も置いていません</div>
+        </div>
+      </div>
+
+      <div class="block" id="adjustBlock">
+        <h3><span class="num">4</span>選んだものを調整</h3>
+        <div id="adjustInner" class="controls-disabled">
+          <div class="ctrl">
+            <label>大きさ <span class="val" id="vScale">1.00</span></label>
+            <input type="range" id="ctrlScale" min="0.2" max="3" step="0.01" value="1">
+          </div>
+          <div class="ctrl">
+            <label>厚み <span class="val" id="vThick">1.00</span></label>
+            <input type="range" id="ctrlThick" min="0.3" max="3" step="0.01" value="1">
+          </div>
+          <div class="ctrl">
+            <label>向き（回転） <span class="val" id="vRot">0°</span></label>
+            <input type="range" id="ctrlRot" min="-180" max="180" step="1" value="0">
+          </div>
+          <div class="ctrl">
+            <label>傾き（立て・倒す） <span class="val" id="vTilt">0°</span></label>
+            <input type="range" id="ctrlTilt" min="-90" max="90" step="1" value="0">
+          </div>
+          <div class="ctrl">
+            <label>前後の位置 <span class="val" id="vDepth">0</span></label>
+            <input type="range" id="ctrlDepth" min="-200" max="200" step="1" value="0">
+          </div>
+        </div>
+        <button class="btn-danger btn-block" id="btnDelete" style="margin-top:6px;" disabled>これを取り除く</button>
+      </div>
+
+      <div class="block">
+        <h3><span class="num">5</span>仕上げ</h3>
+        <button class="btn-ghost btn-block" id="btnSave">この見た目を画像で保存</button>
+        <div class="note">背景の部屋写真と、置いた立体カードをまとめて1枚のPNGに書き出します。</div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="bottom">写真はすべてこの画面の中だけで処理され、どこにも送信されません。</footer>
+</div>
+
+<script>
+(function(){
+  const stageWrap = document.getElementById('stageWrap');
+  const stageEmpty = document.getElementById('stageEmpty');
+  const stageHint = document.getElementById('stageHint');
+  const roomImg = document.getElementById('roomImg');
+  const canvas = document.getElementById('scene3d');
+
+  const fileRoom = document.getElementById('fileRoom');
+  const fileItem = document.getElementById('fileItem');
+  const roomThumb = document.getElementById('roomThumb');
+  const itemThumb = document.getElementById('itemThumb');
+  const itemListEl = document.getElementById('itemList');
+  const itemCountEl = document.getElementById('itemCount');
+
+  const adjustInner = document.getElementById('adjustInner');
+  const ctrlScale = document.getElementById('ctrlScale');
+  const ctrlThick = document.getElementById('ctrlThick');
+  const ctrlRot = document.getElementById('ctrlRot');
+  const ctrlDepth = document.getElementById('ctrlDepth');
+  const ctrlTilt = document.getElementById('ctrlTilt');
+  const vScale = document.getElementById('vScale');
+  const vThick = document.getElementById('vThick');
+  const vRot = document.getElementById('vRot');
+  const vDepth = document.getElementById('vDepth');
+  const vTilt = document.getElementById('vTilt');
+  const btnDelete = document.getElementById('btnDelete');
+  const btnSave = document.getElementById('btnSave');
+
+  let hasRoom = false;
+  let items = []; // {id, mesh, name, thumbDataUrl}
+  let selectedId = null;
+  let idSeq = 1;
+
+  // ---------- three.js setup ----------
+  let renderer, scene, camera;
+  function initThree(){
+    renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+    camera.position.set(0,0,600);
+
+    const amb = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(amb);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.55);
+    dir.position.set(150,300,400);
+    scene.add(dir);
+    const rim = new THREE.DirectionalLight(0xfff3df, 0.45);
+    rim.position.set(-300,80,80);
+    scene.add(rim);
+
+    resize();
+    window.addEventListener('resize', resize);
+    animate();
+  }
+  function resize(){
+    const w = stageWrap.clientWidth, h = stageWrap.clientHeight;
+    if(!w||!h) return;
+    renderer.setSize(w,h,false);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene,camera);
+  }
+
+  // convert screen px offset to world units roughly at z=0 plane
+  function screenDeltaToWorld(dx,dy){
+    const h = stageWrap.clientHeight;
+    const vFovRad = camera.fov * Math.PI/180;
+    const worldHeightAtZero = 2*Math.tan(vFovRad/2)*camera.position.z;
+    const scale = worldHeightAtZero / h;
+    return {x: dx*scale, y: -dy*scale};
+  }
+
+  // ---------- shadow texture (soft radial gradient) ----------
+  let shadowTexture = null;
+  function getShadowTexture(){
+    if(shadowTexture) return shadowTexture;
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(128,128,0,128,128,128);
+    g.addColorStop(0,'rgba(0,0,0,0.55)');
+    g.addColorStop(0.6,'rgba(0,0,0,0.32)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,256,256);
+    shadowTexture = new THREE.CanvasTexture(c);
+    return shadowTexture;
+  }
+
+  function makeShadowMesh(baseW, baseH){
+    const geo = new THREE.PlaneGeometry(1,1);
+    const mat = new THREE.MeshBasicMaterial({
+      map:getShadowTexture(), transparent:true, depthWrite:false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI/2; // 床と平行に倒す
+    mesh.renderOrder = -1;
+    return mesh;
+  }
+
+  // 物体の位置・大きさに合わせて影の位置とサイズを更新する
+  function syncShadow(it){
+    const d = it.mesh.userData;
+    const w = d.baseW*d.scaleVal*1.05;
+    const h = d.baseH*d.scaleVal*0.55; // 接地影は奥行き方向に少し縮める
+    it.shadow.scale.set(w,h,1);
+    it.shadow.position.set(
+      it.mesh.position.x,
+      it.mesh.position.y - (d.baseH/2)*d.scaleVal - 2,
+      it.mesh.position.z
+    );
+  }
+
+
+  function addItemMesh(imgDataUrl, name){
+    const loader = new THREE.TextureLoader();
+    loader.load(imgDataUrl, function(tex){
+      tex.encoding = THREE.sRGBEncoding;
+      const aspect = tex.image.width / tex.image.height;
+      const baseH = 220;
+      const baseW = baseH*aspect;
+      const depth = baseH*0.4; // しっかり厚みを持たせる（板ではなく塊に見えるように）
+
+      const geo = new THREE.BoxGeometry(baseW, baseH, depth);
+      const faceMat = new THREE.MeshStandardMaterial({map:tex, roughness:0.8, metalness:0.02});
+      const backMat = new THREE.MeshStandardMaterial({color:0x2e2620, roughness:0.95});
+      const sideMat = new THREE.MeshStandardMaterial({color:0x5a4a3a, roughness:0.85});
+      const topMat  = new THREE.MeshStandardMaterial({color:0x8a7560, roughness:0.7});
+      const botMat  = new THREE.MeshStandardMaterial({color:0x231c16, roughness:0.95});
+      // BoxGeometry face order: px(右), nx(左), py(上), ny(下), pz(表/画像), nz(裏)
+      const mats = [sideMat, sideMat, topMat, botMat, faceMat, backMat];
+      const mesh = new THREE.Mesh(geo, mats);
+
+      const n = items.length;
+      const initRot = 32, initTilt = -10; // 最初から斜めに置いて、厚みがひと目で分かるようにする
+      mesh.position.set((n%4-1.5)*40, 0, 0);
+      mesh.rotation.y = initRot*Math.PI/180;
+      mesh.rotation.x = initTilt*Math.PI/180;
+      mesh.userData = {scaleVal:1, rotVal:initRot, depthVal:0, tiltVal:initTilt, thickVal:1, baseW, baseH, depth};
+      scene.add(mesh);
+
+      const shadow = makeShadowMesh(baseW, baseH);
+      scene.add(shadow);
+
+      const id = idSeq++;
+      const it = {id, mesh, shadow, name: name||('物 '+id), thumb: imgDataUrl};
+      syncShadow(it);
+      items.push(it);
+      refreshList();
+      selectItem(id);
+      stageHint.style.display = 'block';
+    });
+  }
+
+  function refreshList(){
+    itemCountEl.textContent = items.length;
+    if(items.length===0){
+      itemListEl.innerHTML = '<div class="empty-list">まだ何も置いていません</div>';
+      return;
+    }
+    itemListEl.innerHTML='';
+    items.forEach(it=>{
+      const row = document.createElement('div');
+      row.className = 'item-row'+(it.id===selectedId?' active':'');
+      row.innerHTML = `<img src="${it.thumb}"><span class="name">${it.name}</span><button class="del" data-id="${it.id}">×</button>`;
+      row.addEventListener('click',(e)=>{
+        if(e.target.classList.contains('del')) return;
+        selectItem(it.id);
+      });
+      row.querySelector('.del').addEventListener('click',(e)=>{
+        e.stopPropagation();
+        removeItem(it.id);
+      });
+      itemListEl.appendChild(row);
+    });
+  }
+
+  function selectItem(id){
+    selectedId = id;
+    const it = items.find(x=>x.id===id);
+    refreshList();
+    if(!it){
+      adjustInner.classList.add('controls-disabled');
+      btnDelete.disabled = true;
+      return;
+    }
+    adjustInner.classList.remove('controls-disabled');
+    btnDelete.disabled = false;
+    const d = it.mesh.userData;
+    ctrlScale.value = d.scaleVal;
+    ctrlThick.value = d.thickVal;
+    ctrlRot.value = d.rotVal;
+    ctrlDepth.value = d.depthVal;
+    ctrlTilt.value = d.tiltVal;
+    updateValLabels();
+  }
+
+  function removeItem(id){
+    const idx = items.findIndex(x=>x.id===id);
+    if(idx<0) return;
+    scene.remove(items[idx].mesh);
+    scene.remove(items[idx].shadow);
+    items.splice(idx,1);
+    if(selectedId===id){
+      selectedId = items.length? items[items.length-1].id : null;
+    }
+    refreshList();
+    if(selectedId) selectItem(selectedId);
+    else selectItem(null);
+  }
+
+  function updateValLabels(){
+    vScale.textContent = parseFloat(ctrlScale.value).toFixed(2);
+    vThick.textContent = parseFloat(ctrlThick.value).toFixed(2);
+    vRot.textContent = ctrlRot.value+'°';
+    vDepth.textContent = ctrlDepth.value;
+    vTilt.textContent = ctrlTilt.value+'°';
+  }
+
+  function applyControls(){
+    const it = items.find(x=>x.id===selectedId);
+    if(!it) return;
+    const d = it.mesh.userData;
+    d.scaleVal = parseFloat(ctrlScale.value);
+    d.thickVal = parseFloat(ctrlThick.value);
+    d.rotVal = parseFloat(ctrlRot.value);
+    d.depthVal = parseFloat(ctrlDepth.value);
+    d.tiltVal = parseFloat(ctrlTilt.value);
+    updateValLabels();
+
+    it.mesh.scale.set(d.scaleVal, d.scaleVal, d.scaleVal*d.thickVal);
+    it.mesh.rotation.y = d.rotVal*Math.PI/180;
+    it.mesh.rotation.x = d.tiltVal*Math.PI/180;
+    it.mesh.position.z = d.depthVal;
+    syncShadow(it);
+  }
+  [ctrlScale,ctrlThick,ctrlRot,ctrlDepth,ctrlTilt].forEach(el=>el.addEventListener('input',applyControls));
+
+  btnDelete.addEventListener('click',()=>{
+    if(selectedId) removeItem(selectedId);
+  });
+
+  // ---------- drag to move on XY plane ----------
+  let dragging=false, dragId=null, lastX=0,lastY=0;
+  const raycaster = new THREE.Raycaster();
+  const mouseNDC = new THREE.Vector2();
+
+  function getPointer(e){
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.touches? e.touches[0].clientX : e.clientX);
+    const cy = (e.touches? e.touches[0].clientY : e.clientY);
+    return {x:cx-rect.left, y:cy-rect.top, clientX:cx, clientY:cy, rect};
+  }
+
+  function pickMesh(px,py,rect){
+    mouseNDC.x = (px/rect.width)*2-1;
+    mouseNDC.y = -(py/rect.height)*2+1;
+    raycaster.setFromCamera(mouseNDC, camera);
+    const meshes = items.map(it=>it.mesh);
+    const hits = raycaster.intersectObjects(meshes, false);
+    if(hits.length){
+      const m = hits[0].object;
+      return items.find(it=>it.mesh===m);
+    }
+    return null;
+  }
+
+  function onDown(e){
+    if(items.length===0) return;
+    const p = getPointer(e);
+    const hit = pickMesh(p.x,p.y,p.rect);
+    if(hit){
+      dragging=true; dragId=hit.id;
+      lastX=p.clientX; lastY=p.clientY;
+      selectItem(hit.id);
+      e.preventDefault();
+    }
+  }
+  function onMove(e){
+    if(!dragging) return;
+    const p = getPointer(e);
+    const dx = p.clientX-lastX, dy = p.clientY-lastY;
+    lastX=p.clientX; lastY=p.clientY;
+    const it = items.find(x=>x.id===dragId);
+    if(it){
+      const w = screenDeltaToWorld(dx,dy);
+      it.mesh.position.x += w.x;
+      it.mesh.position.y += w.y;
+      syncShadow(it);
+    }
+    e.preventDefault();
+  }
+  function onUp(){ dragging=false; dragId=null; }
+
+  canvas.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  canvas.addEventListener('touchstart', onDown, {passive:false});
+  canvas.addEventListener('touchmove', onMove, {passive:false});
+  canvas.addEventListener('touchend', onUp);
+
+  // ---------- file inputs ----------
+  function readFileAsDataUrl(file, cb){
+    const reader = new FileReader();
+    reader.onload = ()=>cb(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  fileRoom.addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    readFileAsDataUrl(f, (url)=>{
+      roomImg.src = url;
+      roomImg.style.display='block';
+      roomThumb.src = url;
+      roomThumb.style.display='block';
+      stageEmpty.style.display='none';
+      hasRoom = true;
+    });
+  });
+
+  fileItem.addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    readFileAsDataUrl(f, (url)=>{
+      itemThumb.src = url;
+      itemThumb.style.display='block';
+      stageEmpty.style.display='none';
+      addItemMesh(url, '物 '+ (idSeq));
+    });
+  });
+
+  // ---------- save composite image ----------
+  btnSave.addEventListener('click', ()=>{
+    const w = stageWrap.clientWidth, h = stageWrap.clientHeight;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d');
+
+    function drawSceneAndExport(){
+      renderer.render(scene,camera);
+      ctx.drawImage(renderer.domElement, 0,0, w,h);
+      out.toBlob((blob)=>{
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'oitemiru.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+
+    if(hasRoom){
+      ctx.fillStyle = '#1d1812';
+      ctx.fillRect(0,0,w,h);
+      const iw = roomImg.naturalWidth, ih = roomImg.naturalHeight;
+      const scale = Math.max(w/iw, h/ih);
+      const dw = iw*scale, dh = ih*scale;
+      ctx.drawImage(roomImg, (w-dw)/2, (h-dh)/2, dw, dh);
+      drawSceneAndExport();
+    } else {
+      ctx.fillStyle = '#1d1812';
+      ctx.fillRect(0,0,w,h);
+      drawSceneAndExport();
+    }
+  });
+
+  initThree();
+})();
+</script>
+</body>
+</html>
